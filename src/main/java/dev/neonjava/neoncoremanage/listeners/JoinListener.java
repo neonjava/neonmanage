@@ -25,20 +25,22 @@ public class JoinListener implements Listener {
         BanEntry ban = plugin.getDb().getBan(uuid).join();
 
         if (ban != null) {
+            // If the ban has expired, remove it and allow the player in
             if (ban.expiresAt() > 0 && ban.expiresAt() < System.currentTimeMillis()) {
-                plugin.getDb().removeBan(uuid);
-            } else {
-                String remaining = TimeUtils.formatRemaining(ban.expiresAt());
-                
-                Component kickMessage = MiniMessage.miniMessage().deserialize(
-                        "<red><bold>YOU ARE BANNED FROM THE SERVER</bold></red>\n\n" +
-                        "<gray>Reason: <white>" + ban.reason() + "\n" +
-                        "<gray>Time left: <white>" + remaining + "\n\n" +
-                        "<yellow>Appeal on - <underlined>discord.ninemc.fun</underlined></yellow>"
-                );
-                
-                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickMessage);
+                plugin.getDb().removeBan(uuid).join(); // wait for removal before allowing
+                return; // allow login
             }
+
+            String remaining = TimeUtils.formatRemaining(ban.expiresAt());
+
+            Component kickMessage = MiniMessage.miniMessage().deserialize(
+                    "<red><bold>YOU ARE BANNED FROM THE SERVER</bold></red>\n\n" +
+                    "<gray>Reason: <white>" + ban.reason() + "\n" +
+                    "<gray>Time left: <white>" + remaining + "\n\n" +
+                    "<yellow>Appeal on - <underlined>discord.ninemc.fun</underlined></yellow>"
+            );
+
+            event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickMessage);
         }
     }
 }
