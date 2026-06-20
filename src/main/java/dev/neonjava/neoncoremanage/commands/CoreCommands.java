@@ -67,11 +67,15 @@ public class CoreCommands {
                                     }
 
                                     List<String> commands = rankSection.getStringList("commands");
-                                    Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
-                                        for (String cmd : commands) {
-                                            String finalCmd = cmd.replace("{player}", playerName);
-                                            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
-                                        }
+                                    String staffName = ctx.getSource().getSender().getName();
+                                    CompletableFuture.runAsync(() -> {
+                                        Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                                            for (String cmd : commands) {
+                                                String finalCmd = cmd.replace("{player}", playerName);
+                                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
+                                            }
+                                        });
+                                        plugin.getWebhook().sendModerationLog("GIVERANK", playerName, staffName, "Rank: " + rankName, "N/A");
                                     });
 
                                     ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
