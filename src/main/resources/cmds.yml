@@ -1,0 +1,17 @@
+ranks:
+  VIP:
+    commands:
+    - "lp user {player} parent addtemp vip 30d"
+    - "crate givevkey {player} mythic-crate 3"
+  MVP:
+    commands:
+    - "lp user {player} parent addtemp mvp 30d"
+    - "crate givevkey {player} mythic-crate 5"
+  STAR:
+    commands:
+    - "lp user {player} parent addtemp star 30d"
+    - "crate givevkey {player} mythic-crate 10"
+  GOD:
+    commands:
+    - "lp user {player} parent addtemp god 30d"
+    - "crate givevkey {player} mythic-crate 12"

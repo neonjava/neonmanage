@@ -1,0 +1,6 @@
+name: NeonCoreManage
+version: 1.0.0
+main: dev.neonjava.neoncoremanage.NeonCoreManage
+api-version: '1.21'
+folia-supported: true
+description: A powerful chat moderator and rank giving/ban/mute system.
