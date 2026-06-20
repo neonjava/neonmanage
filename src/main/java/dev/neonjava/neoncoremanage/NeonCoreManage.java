@@ -66,6 +66,11 @@ public class NeonCoreManage extends JavaPlugin {
         bannedWordsConfig = YamlConfiguration.loadConfiguration(bannedWordsFile);
     }
 
+    public void reloadConfigs() {
+        cmdsConfig = YamlConfiguration.loadConfiguration(cmdsFile);
+        bannedWordsConfig = YamlConfiguration.loadConfiguration(bannedWordsFile);
+    }
+
     public DatabaseManager getDb() {
         return db;
     }

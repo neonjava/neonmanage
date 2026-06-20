@@ -3,6 +3,8 @@ package dev.neonjava.neoncoremanage.database;
 import dev.neonjava.neoncoremanage.NeonCoreManage;
 import java.io.File;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -43,6 +45,10 @@ public class DatabaseManager {
                         "staff TEXT, " +
                         "reason TEXT, " +
                         "expires_at INTEGER)");
+                s.execute("CREATE TABLE IF NOT EXISTS pending_ranks (" +
+                        "player_name TEXT PRIMARY KEY, " +
+                        "rank_name TEXT, " +
+                        "staff_name TEXT)");
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Could not initialize SQLite database: " + e.getMessage());
@@ -61,6 +67,7 @@ public class DatabaseManager {
 
     public record BanEntry(String uuid, String name, String staff, String reason, long expiresAt) {}
     public record MuteEntry(String uuid, String name, String staff, String reason, long expiresAt) {}
+    public record PendingRank(String playerName, String rankName, String staffName) {}
 
     public CompletableFuture<Void> addBan(BanEntry ban) {
         return CompletableFuture.runAsync(() -> {
@@ -164,6 +171,53 @@ public class DatabaseManager {
                                 rs.getString("staff"),
                                 rs.getString("reason"),
                                 expires
+                        );
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing query: " + e.getMessage());
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> addPendingRank(String playerName, String rankName, String staffName) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "INSERT OR REPLACE INTO pending_ranks (player_name, rank_name, staff_name) VALUES (?, ?, ?)";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, playerName.toLowerCase());
+                ps.setString(2, rankName);
+                ps.setString(3, staffName);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<Void> removePendingRank(String playerName) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "DELETE FROM pending_ranks WHERE player_name = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, playerName.toLowerCase());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<PendingRank> getPendingRank(String playerName) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT * FROM pending_ranks WHERE player_name = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, playerName.toLowerCase());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return new PendingRank(
+                                rs.getString("player_name"),
+                                rs.getString("rank_name"),
+                                rs.getString("staff_name")
                         );
                     }
                 }

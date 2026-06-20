@@ -2,15 +2,21 @@ package dev.neonjava.neoncoremanage.listeners;
 
 import dev.neonjava.neoncoremanage.NeonCoreManage;
 import dev.neonjava.neoncoremanage.database.DatabaseManager.BanEntry;
+import dev.neonjava.neoncoremanage.database.DatabaseManager.PendingRank;
 import dev.neonjava.neoncoremanage.utils.TimeUtils;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public class JoinListener implements Listener {
     private final NeonCoreManage plugin;
@@ -42,5 +48,42 @@ public class JoinListener implements Listener {
 
             event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickMessage);
         }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        String playerName = player.getName();
+
+        plugin.getDb().getPendingRank(playerName).thenAccept(pending -> {
+            if (pending != null) {
+                String rankName = pending.rankName();
+                String staffName = pending.staffName();
+
+                org.bukkit.configuration.ConfigurationSection rankSection = plugin.getCmdsConfig().getConfigurationSection("ranks." + rankName);
+                if (rankSection == null) {
+                    plugin.getLogger().warning("Pending rank '" + rankName + "' for player " + playerName + " was not found in configs!");
+                    plugin.getDb().removePendingRank(playerName);
+                    return;
+                }
+
+                List<String> commands = rankSection.getStringList("commands");
+                // Dispatch commands on the global region thread
+                Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                    for (String cmd : commands) {
+                        String finalCmd = cmd.replace("{player}", playerName);
+                        Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
+                    }
+                    // Inform the player
+                    player.sendMessage(MiniMessage.miniMessage().deserialize(
+                            "<green>Your pending rank <yellow>" + rankName + "</yellow> has been applied!"
+                    ));
+                });
+
+                // Send webhook & clean up pending list
+                plugin.getWebhook().sendModerationLog("GIVERANK", playerName, staffName, "Rank: " + rankName + " (Claimed on join)", "N/A");
+                plugin.getDb().removePendingRank(playerName);
+            }
+        });
     }
 }

@@ -30,6 +30,8 @@ public class CoreCommands {
 
     public void registerAll(Commands registrar) {
         registrar.register(buildGiverank(), "Gives a rank to a player", Collections.emptyList());
+        registrar.register(buildCancelrank(), "Cancels a pending rank for a player", Collections.emptyList());
+        registrar.register(buildNeonmanage(), "Plugin management commands", Collections.emptyList());
         registrar.register(buildBan(), "Bans a player permanently", Collections.emptyList());
         registrar.register(buildTempban(), "Bans a player temporarily", Collections.emptyList());
         registrar.register(buildUnban(), "Unbans a player", Collections.emptyList());
@@ -66,21 +68,32 @@ public class CoreCommands {
                                         return 0;
                                     }
 
-                                    List<String> commands = rankSection.getStringList("commands");
                                     String staffName = ctx.getSource().getSender().getName();
-                                    CompletableFuture.runAsync(() -> {
-                                        Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
-                                            for (String cmd : commands) {
-                                                String finalCmd = cmd.replace("{player}", playerName);
-                                                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
-                                            }
-                                        });
-                                        plugin.getWebhook().sendModerationLog("GIVERANK", playerName, staffName, "Rank: " + rankName, "N/A");
-                                    });
+                                    Player targetPlayer = Bukkit.getPlayerExact(playerName);
 
-                                    ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
-                                            "<green>Successfully applied rank <yellow>" + rankName + "</yellow> to <yellow>" + playerName + "</yellow>."
-                                    ));
+                                    if (targetPlayer != null && targetPlayer.isOnline()) {
+                                        // Execute immediately since player is online
+                                        List<String> commands = rankSection.getStringList("commands");
+                                        CompletableFuture.runAsync(() -> {
+                                            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                                                for (String cmd : commands) {
+                                                    String finalCmd = cmd.replace("{player}", targetPlayer.getName());
+                                                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), finalCmd);
+                                                }
+                                            });
+                                            plugin.getWebhook().sendModerationLog("GIVERANK", targetPlayer.getName(), staffName, "Rank: " + rankName + " (Applied immediately)", "N/A");
+                                        });
+
+                                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                                "<green>Successfully applied rank <yellow>" + rankName + "</yellow> to <yellow>" + targetPlayer.getName() + "</yellow>."
+                                        ));
+                                    } else {
+                                        // Queue for when player logs in
+                                        plugin.getDb().addPendingRank(playerName, rankName, staffName);
+                                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                                "<green>Player <yellow>" + playerName + "</yellow> is offline. Rank <yellow>" + rankName + "</yellow> has been queued and will be applied when they join."
+                                        ));
+                                    }
                                     return 1;
                                 })))
                 .build();
@@ -297,6 +310,39 @@ public class CoreCommands {
                                 plugin.getWebhook().sendModerationLog("UNMUTE", target.getName(), staff, "Unmuted", "N/A");
                                 ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
                                         "<green>Successfully unmuted <yellow>" + target.getName() + "</yellow>."
+                                ));
+                            });
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildCancelrank() {
+        return Commands.literal("cancelrank")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.giverank"))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .executes(ctx -> {
+                            String playerName = StringArgumentType.getString(ctx, "player");
+                            CompletableFuture.runAsync(() -> {
+                                plugin.getDb().removePendingRank(playerName).join();
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                        "<green>Successfully cancelled any pending ranks for <yellow>" + playerName + "</yellow>."
+                                ));
+                            });
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildNeonmanage() {
+        return Commands.literal("neonmanage")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.admin"))
+                .then(Commands.literal("reload")
+                        .executes(ctx -> {
+                            Bukkit.getGlobalRegionScheduler().run(plugin, task -> {
+                                plugin.reloadConfigs();
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                        "<green>NeonCoreManage configuration files reloaded successfully!"
                                 ));
                             });
                             return 1;
