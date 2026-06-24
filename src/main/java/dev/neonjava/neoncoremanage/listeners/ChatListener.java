@@ -12,6 +12,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.SignChangeEvent;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -106,6 +107,27 @@ public class ChatListener implements Listener {
         java.util.concurrent.CompletableFuture.runAsync(() -> 
             plugin.getWebhook().sendChatBridge(playerName, message)
         );
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onSignChange(SignChangeEvent event) {
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        MuteEntry mute = plugin.getDb().getMute(uuid).join();
+        if (mute != null) {
+            if (mute.expiresAt() > 0 && mute.expiresAt() < System.currentTimeMillis()) {
+                plugin.getDb().removeMute(uuid);
+            } else {
+                event.setCancelled(true);
+                String remaining = TimeUtils.formatRemaining(mute.expiresAt());
+                player.sendMessage(MiniMessage.miniMessage().deserialize(
+                        "<red>You cannot edit signs while muted!<br>" +
+                        "<gray>Reason: <white>" + mute.reason() + "<br>" +
+                        "<gray>Remaining: <white>" + remaining
+                ));
+            }
+        }
     }
 
     private boolean containsBannedWord(String message) {

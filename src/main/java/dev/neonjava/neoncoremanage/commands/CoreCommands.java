@@ -83,6 +83,10 @@ public class CoreCommands {
         if (plugin.getConfig().getBoolean("modules.back", true)) {
             registrar.register(buildBack(), "Teleport to your last death location", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.msg", true)) {
+            registrar.register(buildMsg(), "Send a private message to a player", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -999,6 +1003,61 @@ public class CoreCommands {
                     }
                     return 1;
                 })
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildMsg() {
+        return Commands.literal("msg")
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) builder.suggest(p.getName());
+                            return builder.buildFuture();
+                        })
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
+                                .executes(ctx -> {
+                                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                                        return 0;
+                                    }
+                                    // Check if sender is muted
+                                    dev.neonjava.neoncoremanage.database.DatabaseManager.MuteEntry mute = plugin.getDb().getMute(sender.getUniqueId()).join();
+                                    if (mute != null) {
+                                        if (mute.expiresAt() > 0 && mute.expiresAt() < System.currentTimeMillis()) {
+                                            plugin.getDb().removeMute(sender.getUniqueId());
+                                        } else {
+                                            String remaining = dev.neonjava.neoncoremanage.utils.TimeUtils.formatRemaining(mute.expiresAt());
+                                            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                                    "<red>You cannot send private messages while muted!<br>" +
+                                                    "<gray>Reason: <white>" + mute.reason() + "<br>" +
+                                                    "<gray>Remaining: <white>" + remaining
+                                            ));
+                                            return 0;
+                                        }
+                                    }
+                                    String targetName = StringArgumentType.getString(ctx, "player");
+                                    String message = StringArgumentType.getString(ctx, "message");
+                                    Player target = Bukkit.getPlayerExact(targetName);
+                                    if (target == null) {
+                                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>Player not found!"));
+                                        return 0;
+                                    }
+                                    if (target.getUniqueId().equals(sender.getUniqueId())) {
+                                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>You cannot message yourself!"));
+                                        return 0;
+                                    }
+                                    // Check if target is ignoring sender
+                                    if (plugin.isIgnoring(target.getUniqueId(), sender.getUniqueId())) {
+                                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>This player cannot receive your messages."));
+                                        return 0;
+                                    }
+                                    sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                            "<gray>[<gold>You</gold> → <gold>" + target.getName() + "</gold>] <white>" + message
+                                    ));
+                                    target.sendMessage(MiniMessage.miniMessage().deserialize(
+                                            "<gray>[<gold>" + sender.getName() + "</gold> → <gold>You</gold>] <white>" + message
+                                    ));
+                                    return 1;
+                                })))
                 .build();
     }
 }
