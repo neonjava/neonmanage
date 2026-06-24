@@ -74,6 +74,11 @@ public class CoreCommands {
         if (plugin.getConfig().getBoolean("modules.ignore", true)) {
             registrar.register(buildIgnore(), "Toggles ignoring of a player", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.inventory", true)) {
+            registrar.register(buildClearInventory(), "Clears a player's inventory", Collections.emptyList());
+            registrar.register(buildInvsee(), "View another player's inventory", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -854,6 +859,69 @@ public class CoreCommands {
                                         "<green>You are now ignoring <yellow>" + targetName + "</yellow>."
                                 ));
                             }
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildClearInventory() {
+        return Commands.literal("clear")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.clear"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+                    sender.getScheduler().run(plugin, task -> {
+                        sender.getInventory().clear();
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>Your inventory has been cleared!"));
+                    }, null);
+                    return 1;
+                })
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) builder.suggest(p.getName());
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String name = StringArgumentType.getString(ctx, "player");
+                            Player target = Bukkit.getPlayerExact(name);
+                            if (target == null) {
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>Player not found!"));
+                                return 0;
+                            }
+                            target.getScheduler().run(plugin, task -> {
+                                target.getInventory().clear();
+                                target.sendMessage(MiniMessage.miniMessage().deserialize("<red>Your inventory has been cleared by staff!"));
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<green>Cleared inventory of <yellow>" + target.getName() + "</yellow>."));
+                            }, null);
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildInvsee() {
+        return Commands.literal("invsee")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.invsee"))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) builder.suggest(p.getName());
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                                return 0;
+                            }
+                            String name = StringArgumentType.getString(ctx, "player");
+                            Player target = Bukkit.getPlayerExact(name);
+                            if (target == null) {
+                                sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>Player not found!"));
+                                return 0;
+                            }
+                            sender.getScheduler().run(plugin, task -> {
+                                sender.openInventory(target.getInventory());
+                            }, null);
                             return 1;
                         }))
                 .build();

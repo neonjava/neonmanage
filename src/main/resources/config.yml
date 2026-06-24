@@ -9,6 +9,7 @@ modules:
   teleport: true     # Toggle /tpa, /tpahere, /tpaccept, /tpdeny, /tpatoggle commands
   broadcast: true    # Toggle /broadcast command
   ignore: true       # Toggle /ignore command
+  inventory: true    # Toggle /clear and /invsee commands
 
 discord:
   # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)
