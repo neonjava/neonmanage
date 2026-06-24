@@ -90,6 +90,13 @@ public class ChatListener implements Listener {
         }
 
         lastChats.put(uuid, new ChatRecord(message, now));
+
+        event.viewers().removeIf(viewerAudience -> {
+            if (viewerAudience instanceof Player viewer) {
+                return plugin.isIgnoring(viewer.getUniqueId(), uuid);
+            }
+            return false;
+        });
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

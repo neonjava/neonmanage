@@ -58,6 +58,10 @@ public class DatabaseManager {
                         "uuid TEXT PRIMARY KEY, " +
                         "name TEXT, " +
                         "ip TEXT)");
+                s.execute("CREATE TABLE IF NOT EXISTS ignores (" +
+                        "ignorer TEXT, " +
+                        "ignored TEXT, " +
+                        "PRIMARY KEY (ignorer, ignored))");
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Could not initialize SQLite database: " + e.getMessage());
@@ -320,6 +324,50 @@ public class DatabaseManager {
                 plugin.getLogger().severe("[NeonCoreManage] Error executing query: " + e.getMessage());
             }
             return null;
+        });
+    }
+
+    public CompletableFuture<Void> addIgnore(UUID ignorer, UUID ignored) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "INSERT OR IGNORE INTO ignores (ignorer, ignored) VALUES (?, ?)";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, ignorer.toString());
+                ps.setString(2, ignored.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<Void> removeIgnore(UUID ignorer, UUID ignored) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "DELETE FROM ignores WHERE ignorer = ? AND ignored = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, ignorer.toString());
+                ps.setString(2, ignored.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<java.util.Set<UUID>> loadIgnores(UUID ignorer) {
+        return CompletableFuture.supplyAsync(() -> {
+            java.util.Set<UUID> set = java.util.concurrent.ConcurrentHashMap.newKeySet();
+            String sql = "SELECT ignored FROM ignores WHERE ignorer = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, ignorer.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        set.add(UUID.fromString(rs.getString("ignored")));
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing query: " + e.getMessage());
+            }
+            return set;
         });
     }
 }

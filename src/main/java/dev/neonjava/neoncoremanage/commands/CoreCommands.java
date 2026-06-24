@@ -66,6 +66,14 @@ public class CoreCommands {
             registrar.register(buildTpdeny(), "Denies a teleport request", Collections.emptyList());
             registrar.register(buildTpatoggle(), "Toggles teleport requests", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.broadcast", true)) {
+            registrar.register(buildBroadcast(), "Broadcasts a message to the server", Collections.emptyList());
+        }
+
+        if (plugin.getConfig().getBoolean("modules.ignore", true)) {
+            registrar.register(buildIgnore(), "Toggles ignoring of a player", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -789,6 +797,65 @@ public class CoreCommands {
                     }
                     return 1;
                 })
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildBroadcast() {
+        return Commands.literal("broadcast")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.broadcast"))
+                .then(Commands.argument("message", StringArgumentType.greedyString())
+                        .executes(ctx -> {
+                            String message = StringArgumentType.getString(ctx, "message");
+                            String prefix = plugin.getConfig().getString("broadcast.prefix", "<red><bold>[ALERT]</bold></red> ");
+                            Component formatted = MiniMessage.miniMessage().deserialize(prefix + message);
+                            Bukkit.broadcast(formatted);
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildIgnore() {
+        return Commands.literal("ignore")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.ignore"))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) {
+                                builder.suggest(p.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                                return 0;
+                            }
+
+                            String targetName = StringArgumentType.getString(ctx, "player");
+                            @SuppressWarnings("deprecation")
+                            OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+                            if (target.getUniqueId().equals(sender.getUniqueId())) {
+                                sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>You cannot ignore yourself!"));
+                                return 0;
+                            }
+
+                            UUID ignorerUuid = sender.getUniqueId();
+                            UUID ignoredUuid = target.getUniqueId();
+
+                            if (plugin.isIgnoring(ignorerUuid, ignoredUuid)) {
+                                plugin.getIgnoreCache().getOrDefault(ignorerUuid, Collections.emptySet()).remove(ignoredUuid);
+                                plugin.getDb().removeIgnore(ignorerUuid, ignoredUuid);
+                                sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                        "<green>You are no longer ignoring <yellow>" + targetName + "</yellow>."
+                                ));
+                            } else {
+                                plugin.getIgnoreCache().computeIfAbsent(ignorerUuid, k -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(ignoredUuid);
+                                plugin.getDb().addIgnore(ignorerUuid, ignoredUuid);
+                                sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                        "<green>You are now ignoring <yellow>" + targetName + "</yellow>."
+                                ));
+                            }
+                            return 1;
+                        }))
                 .build();
     }
 }

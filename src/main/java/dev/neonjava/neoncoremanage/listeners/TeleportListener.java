@@ -47,5 +47,6 @@ public class TeleportListener implements Listener {
         plugin.getTpaRequests().remove(uuid);
         plugin.getTpaRequests().values().removeIf(req -> req.sender().equals(uuid) || req.receiver().equals(uuid));
         plugin.getGodPlayers().remove(uuid);
+        plugin.getIgnoreCache().remove(uuid);
     }
 }

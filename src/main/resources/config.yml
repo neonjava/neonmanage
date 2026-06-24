@@ -7,6 +7,8 @@ modules:
   chat-bridge: true  # Toggle sending chat messages to Discord
   heal: true         # Toggle /heal command
   teleport: true     # Toggle /tpa, /tpahere, /tpaccept, /tpdeny, /tpatoggle commands
+  broadcast: true    # Toggle /broadcast command
+  ignore: true       # Toggle /ignore command
 
 discord:
   # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)
@@ -21,3 +23,6 @@ discord:
 teleport:
   # Teleport delay in seconds before teleporting (set to 0 for instant teleport)
   delay: 3
+
+broadcast:
+  prefix: "<red><bold>[ALERT]</bold></red> "

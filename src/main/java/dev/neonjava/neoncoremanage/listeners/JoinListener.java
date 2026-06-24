@@ -125,10 +125,13 @@ public class JoinListener implements Listener {
                     ));
                 });
 
-                // Send webhook & clean up pending list
                 plugin.getWebhook().sendModerationLog("GIVERANK", playerName, staffName, "Rank: " + rankName + " (Claimed on join)", "N/A");
                 plugin.getDb().removePendingRank(playerName);
             }
+        });
+
+        plugin.getDb().loadIgnores(player.getUniqueId()).thenAccept(ignoredSet -> {
+            plugin.getIgnoreCache().put(player.getUniqueId(), ignoredSet);
         });
     }
 }

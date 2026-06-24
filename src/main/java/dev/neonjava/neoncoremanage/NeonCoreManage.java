@@ -82,6 +82,17 @@ public class NeonCoreManage extends JavaPlugin {
         bannedWordsConfig = YamlConfiguration.loadConfiguration(bannedWordsFile);
     }
 
+    private final java.util.Map<java.util.UUID, java.util.Set<java.util.UUID>> ignoreCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public java.util.Map<java.util.UUID, java.util.Set<java.util.UUID>> getIgnoreCache() {
+        return ignoreCache;
+    }
+
+    public boolean isIgnoring(java.util.UUID ignorer, java.util.UUID ignored) {
+        java.util.Set<java.util.UUID> ignoredSet = ignoreCache.get(ignorer);
+        return ignoredSet != null && ignoredSet.contains(ignored);
+    }
+
     public java.util.Set<java.util.UUID> getGodPlayers() {
         return godPlayers;
     }
