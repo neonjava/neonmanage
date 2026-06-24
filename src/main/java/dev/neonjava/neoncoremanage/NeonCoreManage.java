@@ -24,6 +24,11 @@ public class NeonCoreManage extends JavaPlugin {
 
     private final java.util.Set<java.util.UUID> godPlayers = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+    public record TpaRequest(java.util.UUID sender, java.util.UUID receiver, boolean isHere, long timestamp) {}
+    private final java.util.Map<java.util.UUID, TpaRequest> tpaRequests = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Set<java.util.UUID> tpaDisabled = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final java.util.Map<java.util.UUID, io.papermc.paper.threadedregions.scheduler.ScheduledTask> activeTeleports = new java.util.concurrent.ConcurrentHashMap<>();
+
     @Override
     public void onEnable() {
         saveDefaultConfigs();
@@ -36,6 +41,7 @@ public class NeonCoreManage extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ChatListener(this), this);
         getServer().getPluginManager().registerEvents(new JoinListener(this), this);
         getServer().getPluginManager().registerEvents(new dev.neonjava.neoncoremanage.listeners.GodListener(this), this);
+        getServer().getPluginManager().registerEvents(new dev.neonjava.neoncoremanage.listeners.TeleportListener(this), this);
 
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             final Commands commands = event.registrar();
@@ -78,6 +84,18 @@ public class NeonCoreManage extends JavaPlugin {
 
     public java.util.Set<java.util.UUID> getGodPlayers() {
         return godPlayers;
+    }
+
+    public java.util.Map<java.util.UUID, TpaRequest> getTpaRequests() {
+        return tpaRequests;
+    }
+
+    public java.util.Set<java.util.UUID> getTpaDisabled() {
+        return tpaDisabled;
+    }
+
+    public java.util.Map<java.util.UUID, io.papermc.paper.threadedregions.scheduler.ScheduledTask> getActiveTeleports() {
+        return activeTeleports;
     }
 
     public DatabaseManager getDb() {

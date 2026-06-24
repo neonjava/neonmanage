@@ -54,6 +54,18 @@ public class CoreCommands {
             registrar.register(buildNight(), "Sets world time to night", Collections.emptyList());
             registrar.register(buildNoon(), "Sets world time to noon", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.heal", true)) {
+            registrar.register(buildHeal(), "Heals a player", Collections.emptyList());
+        }
+
+        if (plugin.getConfig().getBoolean("modules.teleport", true)) {
+            registrar.register(buildTpa(), "Requests to teleport to a player", Collections.emptyList());
+            registrar.register(buildTpahere(), "Requests a player to teleport to you", Collections.emptyList());
+            registrar.register(buildTpaccept(), "Accepts a teleport request", Collections.emptyList());
+            registrar.register(buildTpdeny(), "Denies a teleport request", Collections.emptyList());
+            registrar.register(buildTpatoggle(), "Toggles teleport requests", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -545,5 +557,238 @@ public class CoreCommands {
 
     private boolean isValidIp(String ip) {
         return ip.matches("^([0-9]{1,3}\\.){3}[0-9]{1,3}$") || ip.contains(":");
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildHeal() {
+        return Commands.literal("heal")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.heal"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+                    healPlayer(sender);
+                    sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>You have been healed!"));
+                    return 1;
+                })
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) {
+                                builder.suggest(p.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String name = StringArgumentType.getString(ctx, "player");
+                            Player target = Bukkit.getPlayerExact(name);
+                            if (target == null) {
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>Player not found!"));
+                                return 0;
+                            }
+                            healPlayer(target);
+                            target.sendMessage(MiniMessage.miniMessage().deserialize("<green>You have been healed by staff!"));
+                            ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<green>Healed " + target.getName()));
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private void healPlayer(Player p) {
+        p.getScheduler().run(plugin, task -> {
+            p.setHealth(p.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue());
+            p.setFoodLevel(20);
+            p.setFireTicks(0);
+        }, null);
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildTpa() {
+        return Commands.literal("tpa")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.tpa"))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) {
+                                builder.suggest(p.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> sendTpaRequest(ctx, false)))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildTpahere() {
+        return Commands.literal("tpahere")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.tpa"))
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) {
+                                builder.suggest(p.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> sendTpaRequest(ctx, true)))
+                .build();
+    }
+
+    private int sendTpaRequest(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, boolean isHere) {
+        if (!(ctx.getSource().getSender() instanceof Player sender)) {
+            ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+            return 0;
+        }
+
+        String targetName = StringArgumentType.getString(ctx, "player");
+        Player receiver = Bukkit.getPlayerExact(targetName);
+
+        if (receiver == null || !receiver.isOnline()) {
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>Player not found or offline!"));
+            return 0;
+        }
+
+        if (sender.getUniqueId().equals(receiver.getUniqueId())) {
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>You cannot teleport to yourself!"));
+            return 0;
+        }
+
+        if (plugin.getTpaDisabled().contains(receiver.getUniqueId())) {
+            sender.sendMessage(MiniMessage.miniMessage().deserialize("<yellow>" + receiver.getName() + "</yellow> <red>has teleportation requests disabled!</red>"));
+            return 0;
+        }
+
+        plugin.getTpaRequests().put(receiver.getUniqueId(), new NeonCoreManage.TpaRequest(
+                sender.getUniqueId(),
+                receiver.getUniqueId(),
+                isHere,
+                System.currentTimeMillis()
+        ));
+
+        if (isHere) {
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    "<green>Sent a teleport-here request to <yellow>" + receiver.getName() + "</yellow>."
+            ));
+            receiver.sendMessage(MiniMessage.miniMessage().deserialize(
+                    "<yellow>" + sender.getName() + " </yellow><gray>has requested you to teleport to them.</gray><br>" +
+                    "<green><click:run_command:'/tpaccept'><hover:show_text:'<green>Click to accept teleport request'>[Click to Accept]</hover></click></green> <gray>or</gray> " +
+                    "<red><click:run_command:'/tpdeny'><hover:show_text:'<red>Click to deny teleport request'>[Click to Deny]</hover></click></red>"
+            ));
+        } else {
+            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                    "<green>Sent a teleport request to <yellow>" + receiver.getName() + "</yellow>."
+            ));
+            receiver.sendMessage(MiniMessage.miniMessage().deserialize(
+                    "<yellow>" + sender.getName() + " </yellow><gray>has requested to teleport to you.</gray><br>" +
+                    "<green><click:run_command:'/tpaccept'><hover:show_text:'<green>Click to accept teleport request'>[Click to Accept]</hover></click></green> <gray>or</gray> " +
+                    "<red><click:run_command:'/tpdeny'><hover:show_text:'<red>Click to deny teleport request'>[Click to Deny]</hover></click></red>"
+            ));
+        }
+
+        return 1;
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildTpaccept() {
+        return Commands.literal("tpaccept")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.tpa"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player receiver)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+
+                    NeonCoreManage.TpaRequest request = plugin.getTpaRequests().remove(receiver.getUniqueId());
+                    if (request == null || (System.currentTimeMillis() - request.timestamp()) > 60000L) {
+                        receiver.sendMessage(MiniMessage.miniMessage().deserialize("<red>You have no pending teleport requests!"));
+                        return 0;
+                    }
+
+                    Player sender = Bukkit.getPlayer(request.sender());
+                    if (sender == null || !sender.isOnline()) {
+                        receiver.sendMessage(MiniMessage.miniMessage().deserialize("<red>The sender of the request is no longer online!"));
+                        return 0;
+                    }
+
+                    Player tpTarget = request.isHere() ? receiver : sender;
+                    Player destination = request.isHere() ? sender : receiver;
+
+                    int delay = plugin.getConfig().getInt("teleport.delay", 3);
+                    if (delay <= 0) {
+                        performTeleport(tpTarget, destination);
+                    } else {
+                        tpTarget.sendMessage(MiniMessage.miniMessage().deserialize(
+                                "<green>Teleporting to <yellow>" + destination.getName() + "</yellow> in <yellow>" + delay + "</yellow> seconds. Do not move!"
+                        ));
+                        destination.sendMessage(MiniMessage.miniMessage().deserialize(
+                                "<yellow>" + tpTarget.getName() + "</yellow> will teleport to you in <yellow>" + delay + "</yellow> seconds."
+                        ));
+
+                        long delayTicks = delay * 20L;
+                        io.papermc.paper.threadedregions.scheduler.ScheduledTask task = tpTarget.getScheduler().runDelayed(plugin, t -> {
+                            plugin.getActiveTeleports().remove(tpTarget.getUniqueId());
+                            performTeleport(tpTarget, destination);
+                        }, () -> {}, delayTicks);
+
+                        plugin.getActiveTeleports().put(tpTarget.getUniqueId(), task);
+                    }
+
+                    return 1;
+                })
+                .build();
+    }
+
+    private void performTeleport(Player target, Player destination) {
+        target.getScheduler().run(plugin, task -> {
+            target.teleportAsync(destination.getLocation()).thenAccept(success -> {
+                if (success) {
+                    target.sendMessage(MiniMessage.miniMessage().deserialize("<green>Teleportation complete!"));
+                } else {
+                    target.sendMessage(MiniMessage.miniMessage().deserialize("<red>Teleportation failed!"));
+                }
+            });
+        }, null);
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildTpdeny() {
+        return Commands.literal("tpdeny")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.tpa"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player receiver)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+
+                    NeonCoreManage.TpaRequest request = plugin.getTpaRequests().remove(receiver.getUniqueId());
+                    if (request == null || (System.currentTimeMillis() - request.timestamp()) > 60000L) {
+                        receiver.sendMessage(MiniMessage.miniMessage().deserialize("<red>You have no pending teleport requests!"));
+                        return 0;
+                    }
+
+                    Player sender = Bukkit.getPlayer(request.sender());
+                    if (sender != null && sender.isOnline()) {
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                "<red>" + receiver.getName() + " denied your teleport request."
+                        ));
+                    }
+                    receiver.sendMessage(MiniMessage.miniMessage().deserialize("<green>Teleport request denied."));
+                    return 1;
+                })
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildTpatoggle() {
+        return Commands.literal("tpatoggle")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.tpa"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player p)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+
+                    if (plugin.getTpaDisabled().contains(p.getUniqueId())) {
+                        plugin.getTpaDisabled().remove(p.getUniqueId());
+                        p.sendMessage(MiniMessage.miniMessage().deserialize("<green>Teleport requests <yellow>enabled</yellow>!"));
+                    } else {
+                        plugin.getTpaDisabled().add(p.getUniqueId());
+                        p.sendMessage(MiniMessage.miniMessage().deserialize("<green>Teleport requests <red>disabled</red>!"));
+                    }
+                    return 1;
+                })
+                .build();
     }
 }

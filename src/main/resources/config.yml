@@ -5,6 +5,8 @@ modules:
   time: true         # Toggle /day, /night, /noon commands
   moderation: true   # Toggle /ban, /tempban, /banip, /mute, /unmute, etc.
   chat-bridge: true  # Toggle sending chat messages to Discord
+  heal: true         # Toggle /heal command
+  teleport: true     # Toggle /tpa, /tpahere, /tpaccept, /tpdeny, /tpatoggle commands
 
 discord:
   # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)
@@ -15,3 +17,7 @@ discord:
   
   # Format of the chat message to send to Discord
   chat-bridge-format: "%player%: %message%"
+
+teleport:
+  # Teleport delay in seconds before teleporting (set to 0 for instant teleport)
+  delay: 3
