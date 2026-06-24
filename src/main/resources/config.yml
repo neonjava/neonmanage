@@ -10,6 +10,7 @@ modules:
   broadcast: true    # Toggle /broadcast command
   ignore: true       # Toggle /ignore command
   inventory: true    # Toggle /clear and /invsee commands
+  back: true         # Toggle /back command (teleport to last death location)
 
 discord:
   # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)
@@ -23,6 +24,10 @@ discord:
 
 teleport:
   # Teleport delay in seconds before teleporting (set to 0 for instant teleport)
+  delay: 3
+
+back:
+  # Delay in seconds before teleporting to death location (set to 0 for instant)
   delay: 3
 
 broadcast:

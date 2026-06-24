@@ -28,6 +28,7 @@ public class NeonCoreManage extends JavaPlugin {
     private final java.util.Map<java.util.UUID, TpaRequest> tpaRequests = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Set<java.util.UUID> tpaDisabled = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final java.util.Map<java.util.UUID, io.papermc.paper.threadedregions.scheduler.ScheduledTask> activeTeleports = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<java.util.UUID, org.bukkit.Location> deathLocations = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
@@ -42,6 +43,7 @@ public class NeonCoreManage extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JoinListener(this), this);
         getServer().getPluginManager().registerEvents(new dev.neonjava.neoncoremanage.listeners.GodListener(this), this);
         getServer().getPluginManager().registerEvents(new dev.neonjava.neoncoremanage.listeners.TeleportListener(this), this);
+        getServer().getPluginManager().registerEvents(new dev.neonjava.neoncoremanage.listeners.DeathListener(this), this);
 
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             final Commands commands = event.registrar();
@@ -107,6 +109,10 @@ public class NeonCoreManage extends JavaPlugin {
 
     public java.util.Map<java.util.UUID, io.papermc.paper.threadedregions.scheduler.ScheduledTask> getActiveTeleports() {
         return activeTeleports;
+    }
+
+    public java.util.Map<java.util.UUID, org.bukkit.Location> getDeathLocations() {
+        return deathLocations;
     }
 
     public DatabaseManager getDb() {

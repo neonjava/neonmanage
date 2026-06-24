@@ -79,6 +79,10 @@ public class CoreCommands {
             registrar.register(buildClearInventory(), "Clears a player's inventory", Collections.emptyList());
             registrar.register(buildInvsee(), "View another player's inventory", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.back", true)) {
+            registrar.register(buildBack(), "Teleport to your last death location", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -924,6 +928,53 @@ public class CoreCommands {
                             }, null);
                             return 1;
                         }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildBack() {
+        return Commands.literal("back")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.back"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+                    org.bukkit.Location deathLoc = plugin.getDeathLocations().get(sender.getUniqueId());
+                    if (deathLoc == null) {
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>You have no death location to teleport to!"));
+                        return 0;
+                    }
+                    int delay = plugin.getConfig().getInt("back.delay", 3);
+                    if (delay <= 0) {
+                        sender.getScheduler().run(plugin, task -> {
+                            sender.teleportAsync(deathLoc).thenAccept(success -> {
+                                if (success) {
+                                    plugin.getDeathLocations().remove(sender.getUniqueId());
+                                    sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>Teleported to your last death location!"));
+                                } else {
+                                    sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>Failed to teleport!"));
+                                }
+                            });
+                        }, null);
+                    } else {
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                "<yellow>Teleporting to your death location in <white>" + delay + "s</white>... Don't move!"
+                        ));
+                        io.papermc.paper.threadedregions.scheduler.ScheduledTask scheduledTask = sender.getScheduler().runDelayed(plugin, task -> {
+                            plugin.getActiveTeleports().remove(sender.getUniqueId());
+                            sender.teleportAsync(deathLoc).thenAccept(success -> {
+                                if (success) {
+                                    plugin.getDeathLocations().remove(sender.getUniqueId());
+                                    sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>Teleported to your last death location!"));
+                                } else {
+                                    sender.sendMessage(MiniMessage.miniMessage().deserialize("<red>Failed to teleport!"));
+                                }
+                            });
+                        }, null, delay * 20L);
+                        plugin.getActiveTeleports().put(sender.getUniqueId(), scheduledTask);
+                    }
+                    return 1;
+                })
                 .build();
     }
 }
