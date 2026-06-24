@@ -184,14 +184,15 @@ public class DatabaseManager {
         });
     }
 
-    public CompletableFuture<Void> removeBan(UUID uuid) {
-        return CompletableFuture.runAsync(() -> {
+    public CompletableFuture<Boolean> removeBan(UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
             String sql = "DELETE FROM bans WHERE uuid = ?";
             try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
                 ps.setString(1, uuid.toString());
-                ps.executeUpdate();
+                return ps.executeUpdate() > 0;
             } catch (SQLException e) {
                 plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+                return false;
             }
         });
     }
@@ -240,14 +241,15 @@ public class DatabaseManager {
         });
     }
 
-    public CompletableFuture<Void> removeMute(UUID uuid) {
-        return CompletableFuture.runAsync(() -> {
+    public CompletableFuture<Boolean> removeMute(UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
             String sql = "DELETE FROM mutes WHERE uuid = ?";
             try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
                 ps.setString(1, uuid.toString());
-                ps.executeUpdate();
+                return ps.executeUpdate() > 0;
             } catch (SQLException e) {
                 plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+                return false;
             }
         });
     }

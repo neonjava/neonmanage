@@ -246,7 +246,19 @@ public class CoreCommands {
                             CompletableFuture.runAsync(() -> {
                                 @SuppressWarnings("deprecation")
                                 OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
-                                plugin.getDb().removeBan(target.getUniqueId()).join();
+                                if (!target.hasPlayedBefore() && !target.isOnline()) {
+                                    ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                            "<red>Player <yellow>" + playerName + "</yellow> has never joined the server!"
+                                    ));
+                                    return;
+                                }
+                                boolean removed = plugin.getDb().removeBan(target.getUniqueId()).join();
+                                if (!removed) {
+                                    ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                            "<red>Player <yellow>" + target.getName() + "</yellow> is not banned!"
+                                    ));
+                                    return;
+                                }
                                 String staff = ctx.getSource().getSender().getName();
                                 plugin.getWebhook().sendModerationLog("UNBAN", target.getName(), staff, "Unbanned", "N/A");
                                 ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
@@ -350,7 +362,19 @@ public class CoreCommands {
                             CompletableFuture.runAsync(() -> {
                                 @SuppressWarnings("deprecation")
                                 OfflinePlayer target = Bukkit.getOfflinePlayer(playerName);
-                                plugin.getDb().removeMute(target.getUniqueId()).join();
+                                if (!target.hasPlayedBefore() && !target.isOnline()) {
+                                    ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                            "<red>Player <yellow>" + playerName + "</yellow> has never joined the server!"
+                                    ));
+                                    return;
+                                }
+                                boolean removed = plugin.getDb().removeMute(target.getUniqueId()).join();
+                                if (!removed) {
+                                    ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                            "<red>Player <yellow>" + target.getName() + "</yellow> is not muted!"
+                                    ));
+                                    return;
+                                }
                                 String staff = ctx.getSource().getSender().getName();
                                 plugin.getWebhook().sendModerationLog("UNMUTE", target.getName(), staff, "Unmuted", "N/A");
                                 ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
