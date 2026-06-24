@@ -55,6 +55,28 @@ public class JoinListener implements Listener {
         Player player = event.getPlayer();
         String playerName = player.getName();
 
+        // Send brand to client for F3 menu branding
+        player.getScheduler().run(plugin, task -> {
+            try {
+                if (!Bukkit.getMessenger().getOutgoingChannels(plugin).contains("minecraft:brand")) {
+                    Bukkit.getMessenger().registerOutgoingPluginChannel(plugin, "minecraft:brand");
+                }
+                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                String brand = "neon-core";
+                byte[] stringBytes = brand.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                int value = stringBytes.length;
+                while ((value & 0xFFFFFF80) != 0L) {
+                    baos.write((value & 0x7F) | 0x80);
+                    value >>>= 7;
+                }
+                baos.write(value & 0x7F);
+                baos.write(stringBytes);
+                player.sendPluginMessage(plugin, "minecraft:brand", baos.toByteArray());
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to send server brand to player: " + e.getMessage());
+            }
+        }, null);
+
         plugin.getDb().getPendingRank(playerName).thenAccept(pending -> {
             if (pending != null) {
                 String rankName = pending.rankName();
