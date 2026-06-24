@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "master", "main" ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
 
@@ -29,6 +32,28 @@ jobs:
       with:
         name: NeonCoreManage-Jar
         path: ../output_jars/*.jar
+
+    - name: Get project version
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      id: get_version
+      run: |
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Create or Update Release
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ env.VERSION }}
+        name: Release v${{ env.VERSION }}
+        body: |
+          Automated release for version ${{ env.VERSION }}
+          Commit: ${{ github.sha }}
+        files: ../output_jars/*.jar
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Discord Webhook Notification
       if: always()
