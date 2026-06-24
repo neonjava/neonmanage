@@ -1,0 +1,17 @@
+# NeonCoreManage Configuration
+
+modules:
+  god: true          # Toggle /god command
+  time: true         # Toggle /day, /night, /noon commands
+  moderation: true   # Toggle /ban, /tempban, /banip, /mute, /unmute, etc.
+  chat-bridge: true  # Toggle sending chat messages to Discord
+
+discord:
+  # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)
+  moderation-webhook-url: "REDACTED_WEBHOOK_URL"
+  
+  # Webhook URL for ingame chat to discord bridge
+  chat-bridge-webhook-url: "REDACTED_WEBHOOK_URL"
+  
+  # Format of the chat message to send to Discord
+  chat-bridge-format: "%player%: %message%"

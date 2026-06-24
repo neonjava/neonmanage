@@ -49,6 +49,15 @@ public class DatabaseManager {
                         "player_name TEXT PRIMARY KEY, " +
                         "rank_name TEXT, " +
                         "staff_name TEXT)");
+                s.execute("CREATE TABLE IF NOT EXISTS ip_bans (" +
+                        "ip TEXT PRIMARY KEY, " +
+                        "staff TEXT, " +
+                        "reason TEXT, " +
+                        "expires_at INTEGER)");
+                s.execute("CREATE TABLE IF NOT EXISTS player_ips (" +
+                        "uuid TEXT PRIMARY KEY, " +
+                        "name TEXT, " +
+                        "ip TEXT)");
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Could not initialize SQLite database: " + e.getMessage());
@@ -68,6 +77,92 @@ public class DatabaseManager {
     public record BanEntry(String uuid, String name, String staff, String reason, long expiresAt) {}
     public record MuteEntry(String uuid, String name, String staff, String reason, long expiresAt) {}
     public record PendingRank(String playerName, String rankName, String staffName) {}
+    public record IpBanEntry(String ip, String staff, String reason, long expiresAt) {}
+
+    public CompletableFuture<Void> addIpBan(IpBanEntry ban) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "INSERT OR REPLACE INTO ip_bans (ip, staff, reason, expires_at) VALUES (?, ?, ?, ?)";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, ban.ip());
+                ps.setString(2, ban.staff());
+                ps.setString(3, ban.reason());
+                ps.setLong(4, ban.expiresAt());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<Void> removeIpBan(String ip) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "DELETE FROM ip_bans WHERE ip = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, ip);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<IpBanEntry> getIpBan(String ip) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT * FROM ip_bans WHERE ip = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, ip);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        long expires = rs.getLong("expires_at");
+                        if (expires > 0 && expires < System.currentTimeMillis()) {
+                            removeIpBan(ip).join();
+                            return null;
+                        }
+                        return new IpBanEntry(
+                                rs.getString("ip"),
+                                rs.getString("staff"),
+                                rs.getString("reason"),
+                                expires
+                        );
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing query: " + e.getMessage());
+            }
+            return null;
+        });
+    }
+
+    public CompletableFuture<Void> savePlayerIp(UUID uuid, String name, String ip) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "INSERT OR REPLACE INTO player_ips (uuid, name, ip) VALUES (?, ?, ?)";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, name.toLowerCase());
+                ps.setString(3, ip);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing update: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<String> getLastKnownIp(String name) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT ip FROM player_ips WHERE name = ? ORDER BY uuid DESC LIMIT 1";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, name.toLowerCase());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getString("ip");
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error executing query: " + e.getMessage());
+            }
+            return null;
+        });
+    }
 
     public CompletableFuture<Void> addBan(BanEntry ban) {
         return CompletableFuture.runAsync(() -> {

@@ -3,6 +3,7 @@ package dev.neonjava.neoncoremanage.commands;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.neonjava.neoncoremanage.NeonCoreManage;
+import dev.neonjava.neoncoremanage.database.DatabaseManager;
 import dev.neonjava.neoncoremanage.database.DatabaseManager.BanEntry;
 import dev.neonjava.neoncoremanage.database.DatabaseManager.MuteEntry;
 import dev.neonjava.neoncoremanage.utils.TimeUtils;
@@ -32,12 +33,27 @@ public class CoreCommands {
         registrar.register(buildGiverank(), "Gives a rank to a player", Collections.emptyList());
         registrar.register(buildCancelrank(), "Cancels a pending rank for a player", Collections.emptyList());
         registrar.register(buildNeonmanage(), "Plugin management commands", Collections.emptyList());
-        registrar.register(buildBan(), "Bans a player permanently", Collections.emptyList());
-        registrar.register(buildTempban(), "Bans a player temporarily", Collections.emptyList());
-        registrar.register(buildUnban(), "Unbans a player", Collections.emptyList());
-        registrar.register(buildMute(), "Mutes a player permanently", Collections.emptyList());
-        registrar.register(buildTempmute(), "Mutes a player temporarily", Collections.emptyList());
-        registrar.register(buildUnmute(), "Unmutes a player", Collections.emptyList());
+        
+        if (plugin.getConfig().getBoolean("modules.moderation", true)) {
+            registrar.register(buildBan(), "Bans a player permanently", Collections.emptyList());
+            registrar.register(buildTempban(), "Bans a player temporarily", Collections.emptyList());
+            registrar.register(buildUnban(), "Unbans a player", Collections.emptyList());
+            registrar.register(buildMute(), "Mutes a player permanently", Collections.emptyList());
+            registrar.register(buildTempmute(), "Mutes a player temporarily", Collections.emptyList());
+            registrar.register(buildUnmute(), "Unmutes a player", Collections.emptyList());
+            registrar.register(buildBanip(), "IP bans a player or IP address", Collections.emptyList());
+            registrar.register(buildUnbanip(), "Unbans an IP address", Collections.emptyList());
+        }
+
+        if (plugin.getConfig().getBoolean("modules.god", true)) {
+            registrar.register(buildGod(), "Toggles god mode for a player", Collections.emptyList());
+        }
+
+        if (plugin.getConfig().getBoolean("modules.time", true)) {
+            registrar.register(buildDay(), "Sets world time to day", Collections.emptyList());
+            registrar.register(buildNight(), "Sets world time to night", Collections.emptyList());
+            registrar.register(buildNoon(), "Sets world time to noon", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -348,5 +364,186 @@ public class CoreCommands {
                             return 1;
                         }))
                 .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildGod() {
+        return Commands.literal("god")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.god"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+                    UUID uuid = sender.getUniqueId();
+                    if (plugin.getGodPlayers().contains(uuid)) {
+                        plugin.getGodPlayers().remove(uuid);
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>God mode <red>disabled</red>!"));
+                    } else {
+                        plugin.getGodPlayers().add(uuid);
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize("<green>God mode <yellow>enabled</yellow>!"));
+                    }
+                    return 1;
+                })
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) {
+                                builder.suggest(p.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String playerName = StringArgumentType.getString(ctx, "player");
+                            Player target = Bukkit.getPlayerExact(playerName);
+                            if (target == null) {
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>Player not found!"));
+                                return 0;
+                            }
+                            UUID uuid = target.getUniqueId();
+                            if (plugin.getGodPlayers().contains(uuid)) {
+                                plugin.getGodPlayers().remove(uuid);
+                                target.sendMessage(MiniMessage.miniMessage().deserialize("<green>God mode <red>disabled</red> by staff!"));
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<green>God mode <red>disabled</red> for " + target.getName()));
+                            } else {
+                                plugin.getGodPlayers().add(uuid);
+                                target.sendMessage(MiniMessage.miniMessage().deserialize("<green>God mode <yellow>enabled</yellow> by staff!"));
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<green>God mode <yellow>enabled</yellow> for " + target.getName()));
+                            }
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildDay() {
+        return Commands.literal("day")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.time"))
+                .executes(ctx -> setWorldTime(ctx, 1000))
+                .build();
+    }
+    
+    private LiteralCommandNode<CommandSourceStack> buildNight() {
+        return Commands.literal("night")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.time"))
+                .executes(ctx -> setWorldTime(ctx, 13000))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildNoon() {
+        return Commands.literal("noon")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.time"))
+                .executes(ctx -> setWorldTime(ctx, 6000))
+                .build();
+    }
+
+    private int setWorldTime(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, long time) {
+        org.bukkit.World world;
+        if (ctx.getSource().getSender() instanceof Player p) {
+            world = p.getWorld();
+        } else {
+            if (Bukkit.getWorlds().isEmpty()) {
+                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>No worlds found on the server!"));
+                return 0;
+            }
+            world = Bukkit.getWorlds().get(0);
+        }
+        
+        Bukkit.getRegionScheduler().run(plugin, world.getSpawnLocation(), task -> {
+            world.setTime(time);
+            ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                    "<green>World time set to <yellow>" + time + "</yellow> in <yellow>" + world.getName() + "</yellow>."
+            ));
+        });
+        return 1;
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildBanip() {
+        return Commands.literal("banip")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.banip"))
+                .then(Commands.argument("player_or_ip", StringArgumentType.string())
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) {
+                                builder.suggest(p.getName());
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> executeBanIp(ctx, false))
+                        .then(Commands.argument("reason", StringArgumentType.greedyString())
+                                .executes(ctx -> executeBanIp(ctx, true))))
+                .build();
+    }
+
+    private int executeBanIp(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, boolean hasReason) {
+        String input = StringArgumentType.getString(ctx, "player_or_ip");
+        String reason = hasReason ? StringArgumentType.getString(ctx, "reason") : "Banned by administrator";
+        String staff = ctx.getSource().getSender().getName();
+
+        CompletableFuture.runAsync(() -> {
+            String targetIp = null;
+            String targetName = input;
+            Player targetPlayer = Bukkit.getPlayerExact(input);
+
+            if (targetPlayer != null) {
+                if (targetPlayer.getAddress() != null) {
+                    targetIp = targetPlayer.getAddress().getAddress().getHostAddress();
+                }
+                targetName = targetPlayer.getName();
+            } else if (isValidIp(input)) {
+                targetIp = input;
+                targetName = "IP: " + input;
+            } else {
+                targetIp = plugin.getDb().getLastKnownIp(input).join();
+            }
+
+            if (targetIp == null) {
+                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                        "<red>Could not resolve IP address for: <yellow>" + input + "</yellow>"
+                ));
+                return;
+            }
+
+            plugin.getDb().addIpBan(new DatabaseManager.IpBanEntry(targetIp, staff, reason, -1)).join();
+
+            final String finalIp = targetIp;
+            final String finalReason = reason;
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.getAddress() != null && p.getAddress().getAddress().getHostAddress().equals(finalIp)) {
+                    p.getScheduler().run(plugin, task -> p.kick(MiniMessage.miniMessage().deserialize(
+                            "<red><bold>YOUR IP IS BANNED FROM THE SERVER</bold></red>\n\n" +
+                            "<gray>Reason: <white>" + finalReason + "\n" +
+                            "<gray>Time left: <white>Permanent\n\n" +
+                            "<yellow>Appeal on - <underlined>discord.ninemc.fun</underlined></yellow>"
+                    )), null);
+                }
+            }
+
+            plugin.getWebhook().sendModerationLog("BANIP", targetName, staff, reason, "Permanent");
+            ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                    "<green>Successfully IP banned <yellow>" + targetName + "</yellow> (IP: " + targetIp + ") for: <gray>" + reason
+            ));
+        });
+
+        return 1;
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildUnbanip() {
+        return Commands.literal("unbanip")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.banip"))
+                .then(Commands.argument("ip", StringArgumentType.string())
+                        .executes(ctx -> {
+                            String ip = StringArgumentType.getString(ctx, "ip");
+                            CompletableFuture.runAsync(() -> {
+                                plugin.getDb().removeIpBan(ip).join();
+                                String staff = ctx.getSource().getSender().getName();
+                                plugin.getWebhook().sendModerationLog("UNBANIP", ip, staff, "Unbanned IP", "N/A");
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                        "<green>Successfully unbanned IP: <yellow>" + ip + "</yellow>."
+                                ));
+                            });
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private boolean isValidIp(String ip) {
+        return ip.matches("^([0-9]{1,3}\\.){3}[0-9]{1,3}$") || ip.contains(":");
     }
 }

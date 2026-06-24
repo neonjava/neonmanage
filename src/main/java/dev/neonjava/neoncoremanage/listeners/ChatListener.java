@@ -92,6 +92,15 @@ public class ChatListener implements Listener {
         lastChats.put(uuid, new ChatRecord(message, now));
     }
 
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerChatMonitor(AsyncChatEvent event) {
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
+        String playerName = event.getPlayer().getName();
+        java.util.concurrent.CompletableFuture.runAsync(() -> 
+            plugin.getWebhook().sendChatBridge(playerName, message)
+        );
+    }
+
     private boolean containsBannedWord(String message) {
         String lowerMessage = message.toLowerCase(Locale.ROOT);
         org.bukkit.configuration.ConfigurationSection section = plugin.getBannedWordsConfig().getConfigurationSection("banned-words");

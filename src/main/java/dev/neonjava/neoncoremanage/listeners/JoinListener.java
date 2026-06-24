@@ -27,6 +27,24 @@ public class JoinListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerPreLogin(AsyncPlayerPreLoginEvent event) {
+        String ip = event.getAddress().getHostAddress();
+        dev.neonjava.neoncoremanage.database.DatabaseManager.IpBanEntry ipBan = plugin.getDb().getIpBan(ip).join();
+        if (ipBan != null) {
+            if (ipBan.expiresAt() > 0 && ipBan.expiresAt() < System.currentTimeMillis()) {
+                plugin.getDb().removeIpBan(ip).join();
+            } else {
+                String remaining = TimeUtils.formatRemaining(ipBan.expiresAt());
+                Component kickMessage = MiniMessage.miniMessage().deserialize(
+                        "<red><bold>YOUR IP IS BANNED FROM THE SERVER</bold></red>\n\n" +
+                        "<gray>Reason: <white>" + ipBan.reason() + "\n" +
+                        "<gray>Time left: <white>" + remaining + "\n\n" +
+                        "<yellow>Appeal on - <underlined>discord.ninemc.fun</underlined></yellow>"
+                );
+                event.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, kickMessage);
+                return;
+            }
+        }
+
         UUID uuid = event.getUniqueId();
         BanEntry ban = plugin.getDb().getBan(uuid).join();
 
@@ -54,6 +72,11 @@ public class JoinListener implements Listener {
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         String playerName = player.getName();
+        
+        if (player.getAddress() != null) {
+            String ip = player.getAddress().getAddress().getHostAddress();
+            plugin.getDb().savePlayerIp(player.getUniqueId(), playerName, ip);
+        }
 
         // Send brand to client for F3 menu branding
         player.getScheduler().run(plugin, task -> {

@@ -22,6 +22,8 @@ public class NeonCoreManage extends JavaPlugin {
     private File cmdsFile;
     private File bannedWordsFile;
 
+    private final java.util.Set<java.util.UUID> godPlayers = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     @Override
     public void onEnable() {
         saveDefaultConfigs();
@@ -29,10 +31,11 @@ public class NeonCoreManage extends JavaPlugin {
         db = new DatabaseManager(this);
         db.init();
 
-        webhook = new WebhookManager();
+        webhook = new WebhookManager(this);
 
         getServer().getPluginManager().registerEvents(new ChatListener(this), this);
         getServer().getPluginManager().registerEvents(new JoinListener(this), this);
+        getServer().getPluginManager().registerEvents(new dev.neonjava.neoncoremanage.listeners.GodListener(this), this);
 
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             final Commands commands = event.registrar();
@@ -52,6 +55,7 @@ public class NeonCoreManage extends JavaPlugin {
     }
 
     private void saveDefaultConfigs() {
+        saveDefaultConfig();
         cmdsFile = new File(getDataFolder(), "cmds.yml");
         bannedWordsFile = new File(getDataFolder(), "banned_words.yml");
 
@@ -67,8 +71,13 @@ public class NeonCoreManage extends JavaPlugin {
     }
 
     public void reloadConfigs() {
+        reloadConfig();
         cmdsConfig = YamlConfiguration.loadConfiguration(cmdsFile);
         bannedWordsConfig = YamlConfiguration.loadConfiguration(bannedWordsFile);
+    }
+
+    public java.util.Set<java.util.UUID> getGodPlayers() {
+        return godPlayers;
     }
 
     public DatabaseManager getDb() {
