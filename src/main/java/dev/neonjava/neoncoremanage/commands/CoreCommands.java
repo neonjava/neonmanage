@@ -91,6 +91,11 @@ public class CoreCommands {
         if (plugin.getConfig().getBoolean("modules.hide", true)) {
             registrar.register(buildHide(), "Toggle disguise with glitched name and Steve skin", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.economy", true)) {
+            registrar.register(buildBalance(), "Check your or another player's balance", Collections.emptyList());
+            registrar.register(buildBalancetop(), "View the richest players", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -1128,6 +1133,74 @@ public class CoreCommands {
                             ));
                         }, null);
                     }
+                    return 1;
+                })
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildBalance() {
+        return Commands.literal("balance")
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+                    CompletableFuture.runAsync(() -> {
+                        double bal = plugin.getDb().getBalance(sender.getUniqueId()).join();
+                        sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                "<green>Your balance: <gold>$" + String.format("%,.2f", bal) + "</gold>"
+                        ));
+                    });
+                    return 1;
+                })
+                .then(Commands.argument("player", StringArgumentType.string())
+                        .requires(stack -> stack.getSender().hasPermission("neoncore.balance.others"))
+                        .suggests((ctx, builder) -> {
+                            for (Player p : Bukkit.getOnlinePlayers()) builder.suggest(p.getName());
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            String targetName = StringArgumentType.getString(ctx, "player");
+                            CompletableFuture.runAsync(() -> {
+                                @SuppressWarnings("deprecation")
+                                OfflinePlayer target = Bukkit.getOfflinePlayer(targetName);
+                                double bal = plugin.getDb().getBalance(target.getUniqueId()).join();
+                                ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(
+                                        "<green><yellow>" + target.getName() + "</yellow>'s balance: <gold>$" + String.format("%,.2f", bal) + "</gold>"
+                                ));
+                            });
+                            return 1;
+                        }))
+                .build();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildBalancetop() {
+        return Commands.literal("balancetop")
+                .executes(ctx -> {
+                    CompletableFuture.runAsync(() -> {
+                        int limit = plugin.getConfig().getInt("economy.top-limit", 10);
+                        java.util.List<dev.neonjava.neoncoremanage.database.DatabaseManager.BalanceEntry> top = plugin.getDb().getTopBalances(limit).join();
+                        StringBuilder msg = new StringBuilder();
+                        msg.append("<gold><bold>═══ Top Balances ═══</bold></gold><br>");
+                        if (top.isEmpty()) {
+                            msg.append("<gray>No balances recorded yet.");
+                        } else {
+                            for (int i = 0; i < top.size(); i++) {
+                                dev.neonjava.neoncoremanage.database.DatabaseManager.BalanceEntry entry = top.get(i);
+                                String medal = switch (i) {
+                                    case 0 -> "<gold>⭐</gold>";
+                                    case 1 -> "<gray>⭐</gray>";
+                                    case 2 -> "<#cd7f32>⭐</#cd7f32>";
+                                    default -> "<white>" + (i + 1) + ".</white>";
+                                };
+                                msg.append(medal).append(" <yellow>").append(entry.name())
+                                        .append("</yellow> <gray>-</gray> <gold>$").append(String.format("%,.2f", entry.balance()))
+                                        .append("</gold>");
+                                if (i < top.size() - 1) msg.append("<br>");
+                            }
+                        }
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize(msg.toString()));
+                    });
                     return 1;
                 })
                 .build();

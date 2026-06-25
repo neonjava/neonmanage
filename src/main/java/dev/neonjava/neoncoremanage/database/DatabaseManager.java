@@ -62,6 +62,10 @@ public class DatabaseManager {
                         "ignorer TEXT, " +
                         "ignored TEXT, " +
                         "PRIMARY KEY (ignorer, ignored))");
+                s.execute("CREATE TABLE IF NOT EXISTS balances (" +
+                        "uuid TEXT PRIMARY KEY, " +
+                        "name TEXT, " +
+                        "balance REAL DEFAULT 0)");
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Could not initialize SQLite database: " + e.getMessage());
@@ -370,6 +374,69 @@ public class DatabaseManager {
                 plugin.getLogger().severe("[NeonCoreManage] Error executing query: " + e.getMessage());
             }
             return set;
+        });
+    }
+
+    // ── Economy ──────────────────────────────────────────────
+
+    public CompletableFuture<Double> getBalance(UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT balance FROM balances WHERE uuid = ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return rs.getDouble("balance");
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error getting balance: " + e.getMessage());
+            }
+            return 0.0;
+        });
+    }
+
+    public CompletableFuture<Void> setBalance(UUID uuid, String name, double amount) {
+        return CompletableFuture.runAsync(() -> {
+            String sql = "INSERT INTO balances (uuid, name, balance) VALUES (?, ?, ?) " +
+                    "ON CONFLICT(uuid) DO UPDATE SET name = excluded.name, balance = excluded.balance";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                ps.setString(2, name);
+                ps.setDouble(3, amount);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error setting balance: " + e.getMessage());
+            }
+        });
+    }
+
+    public CompletableFuture<Double> addBalance(UUID uuid, String name, double amount) {
+        return CompletableFuture.supplyAsync(() -> {
+            double current = getBalance(uuid).join();
+            double newBal = current + amount;
+            setBalance(uuid, name, newBal).join();
+            return newBal;
+        });
+    }
+
+    public record BalanceEntry(String name, double balance) {}
+
+    public CompletableFuture<List<BalanceEntry>> getTopBalances(int limit) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<BalanceEntry> list = new ArrayList<>();
+            String sql = "SELECT name, balance FROM balances ORDER BY balance DESC LIMIT ?";
+            try (PreparedStatement ps = getConnection().prepareStatement(sql)) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        list.add(new BalanceEntry(rs.getString("name"), rs.getDouble("balance")));
+                    }
+                }
+            } catch (SQLException e) {
+                plugin.getLogger().severe("[NeonCoreManage] Error getting top balances: " + e.getMessage());
+            }
+            return list;
         });
     }
 }
