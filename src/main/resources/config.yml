@@ -12,6 +12,7 @@ modules:
   inventory: true    # Toggle /clear and /invsee commands
   back: true         # Toggle /back command (teleport to last death location)
   msg: true          # Toggle /msg private messaging command
+  hide: true         # Toggle /hide command (disguise with glitched name)
 
 discord:
   # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)

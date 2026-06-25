@@ -87,6 +87,10 @@ public class CoreCommands {
         if (plugin.getConfig().getBoolean("modules.msg", true)) {
             registrar.register(buildMsg(), "Send a private message to a player", Collections.emptyList());
         }
+
+        if (plugin.getConfig().getBoolean("modules.hide", true)) {
+            registrar.register(buildHide(), "Toggle disguise with glitched name and Steve skin", Collections.emptyList());
+        }
     }
 
     private LiteralCommandNode<CommandSourceStack> buildGiverank() {
@@ -1058,6 +1062,74 @@ public class CoreCommands {
                                     ));
                                     return 1;
                                 })))
+                .build();
+    }
+
+    private static final char[] GLITCH_CHARS = {
+            '̴', '̵', '̶', '̷', '̸', '̡', '̢', '̧', '̨', '̛',
+            '̖', '̗', '̘', '̙', '̜', '̝', '̞', '̟', '̠', '̣',
+            '̤', '̥', '̦', '̩', '̪', '̫', '̬', '̭', '̮', '̯',
+            '̰', '̱', '̲', '̳', '̹', '̺', '̻', '̼'
+    };
+
+    private String generateGlitchedName() {
+        java.util.Random rand = new java.util.Random();
+        StringBuilder sb = new StringBuilder();
+        String baseChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        int len = 4 + rand.nextInt(6); // 4-9 chars
+        for (int i = 0; i < len; i++) {
+            sb.append(baseChars.charAt(rand.nextInt(baseChars.length())));
+            // Add 1-3 zalgo combining characters
+            int zalgoCount = 1 + rand.nextInt(3);
+            for (int j = 0; j < zalgoCount; j++) {
+                sb.append(GLITCH_CHARS[rand.nextInt(GLITCH_CHARS.length)]);
+            }
+        }
+        return sb.toString();
+    }
+
+    private LiteralCommandNode<CommandSourceStack> buildHide() {
+        return Commands.literal("hide")
+                .requires(stack -> stack.getSender().hasPermission("neoncore.hide"))
+                .executes(ctx -> {
+                    if (!(ctx.getSource().getSender() instanceof Player sender)) {
+                        ctx.getSource().getSender().sendMessage(MiniMessage.miniMessage().deserialize("<red>This command can only be run by a player!"));
+                        return 0;
+                    }
+                    java.util.UUID uuid = sender.getUniqueId();
+
+                    if (plugin.getHiddenPlayers().containsKey(uuid)) {
+                        // Unhide: restore original display name
+                        net.kyori.adventure.text.Component originalName = plugin.getHiddenPlayers().remove(uuid);
+                        sender.getScheduler().run(plugin, task -> {
+                            sender.displayName(originalName);
+                            sender.playerListName(originalName);
+                            sender.customName(null);
+                            sender.setCustomNameVisible(false);
+                            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                    "<green>You are no longer hidden. Your identity has been restored!"
+                            ));
+                        }, null);
+                    } else {
+                        // Hide: save original name, set glitched name
+                        net.kyori.adventure.text.Component originalName = sender.displayName();
+                        plugin.getHiddenPlayers().put(uuid, originalName);
+                        String glitchedName = generateGlitchedName();
+                        sender.getScheduler().run(plugin, task -> {
+                            net.kyori.adventure.text.Component glitchComponent = MiniMessage.miniMessage().deserialize(
+                                    "<obfuscated><dark_purple>" + glitchedName + "</dark_purple></obfuscated>"
+                            );
+                            sender.displayName(glitchComponent);
+                            sender.playerListName(glitchComponent);
+                            sender.customName(glitchComponent);
+                            sender.setCustomNameVisible(true);
+                            sender.sendMessage(MiniMessage.miniMessage().deserialize(
+                                    "<dark_purple><obfuscated>|||</obfuscated> You are now hidden! Your identity is disguised. <obfuscated>|||</obfuscated>"
+                            ));
+                        }, null);
+                    }
+                    return 1;
+                })
                 .build();
     }
 }

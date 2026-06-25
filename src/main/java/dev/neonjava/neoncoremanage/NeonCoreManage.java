@@ -29,6 +29,8 @@ public class NeonCoreManage extends JavaPlugin {
     private final java.util.Set<java.util.UUID> tpaDisabled = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final java.util.Map<java.util.UUID, io.papermc.paper.threadedregions.scheduler.ScheduledTask> activeTeleports = new java.util.concurrent.ConcurrentHashMap<>();
     private final java.util.Map<java.util.UUID, org.bukkit.Location> deathLocations = new java.util.concurrent.ConcurrentHashMap<>();
+    // Map from UUID to original display name for /hide toggle
+    private final java.util.Map<java.util.UUID, net.kyori.adventure.text.Component> hiddenPlayers = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
@@ -129,5 +131,9 @@ public class NeonCoreManage extends JavaPlugin {
 
     public FileConfiguration getBannedWordsConfig() {
         return bannedWordsConfig;
+    }
+
+    public java.util.Map<java.util.UUID, net.kyori.adventure.text.Component> getHiddenPlayers() {
+        return hiddenPlayers;
     }
 }
