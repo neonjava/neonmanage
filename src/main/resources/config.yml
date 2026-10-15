@@ -17,10 +17,10 @@ modules:
 
 discord:
   # Webhook URL for moderation logs (bans, mutes, unbans, unmutes, giverank)
-  moderation-webhook-url: "REDACTED_WEBHOOK_URL"
+  moderation-webhook-url: ""
   
   # Webhook URL for ingame chat to discord bridge
-  chat-bridge-webhook-url: "REDACTED_WEBHOOK_URL"
+  chat-bridge-webhook-url: ""
   
   # Format of the chat message to send to Discord
   chat-bridge-format: "%player%: %message%"

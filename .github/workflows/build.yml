@@ -54,21 +54,3 @@ jobs:
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Discord Webhook Notification
-      if: always()
-      run: |
-        STATUS="${{ job.status }}"
-        COLOR=3066993
-        if [ "$STATUS" = "success" ]; then
-          COLOR=3066993
-        elif [ "$STATUS" = "failure" ]; then
-          COLOR=15158332
-        fi
-        
-        MESSAGE="**Repo:** \`${{ github.repository }}\` \n**Branch:** \`${{ github.ref_name }}\` \n**Commit:** [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) - \`${{ github.event.head_commit.message }}\` \n**Author:** \`${{ github.event.head_commit.author.name }}\` \n**Build Status:** **${STATUS^^}**"
-        ESCAPED_MESSAGE=$(echo "$MESSAGE" | sed 's/"/\\"/g' | awk '{printf "%s\\n", $0}' | sed 's/\\n$//')
-        
-        curl -H "Content-Type: application/json" \
-             -d "{\"embeds\": [{\"title\": \"GitHub Actions Build Notification\", \"description\": \"$ESCAPED_MESSAGE\", \"color\": $COLOR}]}" \
-             "REDACTED_WEBHOOK_URL"
